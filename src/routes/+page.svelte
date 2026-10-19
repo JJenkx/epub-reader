@@ -177,21 +177,15 @@
 				<span>{Math.round(reader.progress * 100)}%</span>
 			</div>
 			<div class="progress"><div style:width="{reader.progress * 100}%"></div></div>
-			<div class="controls">
-				<button
-					class="play"
-					aria-label={reader.continuous ? 'Pause' : 'Play'}
-					onclick={togglePlay}
-				>
-					{#if reader.continuous}
-						<svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
-					{:else}
-						<svg viewBox="0 0 24 24"><path d="M8 5.5v13a1 1 0 0 0 1.5.9l10.4-6.5a1 1 0 0 0 0-1.8L9.5 4.6A1 1 0 0 0 8 5.5z" /></svg>
-					{/if}
-				</button>
-				<div class="speed"><SpeedBar onpress={showRsvp} onpause={() => paused()} /></div>
-			</div>
+			<SpeedBar onpress={showRsvp} onpause={() => paused()} />
 		</footer>
+		<button class="play" aria-label={reader.continuous ? 'Pause' : 'Play'} onclick={togglePlay}>
+			{#if reader.continuous}
+				<svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
+			{:else}
+				<svg viewBox="0 0 24 24"><path d="M8 5.5v13a1 1 0 0 0 1.5.9l10.4-6.5a1 1 0 0 0 0-1.8L9.5 4.6A1 1 0 0 0 8 5.5z" /></svg>
+			{/if}
+		</button>
 	{/if}
 </div>
 
@@ -316,49 +310,39 @@
 		border-top: 1px solid var(--border);
 	}
 
-	/* Keep the controls clear of the bottom quarter of a phone screen, where thumbs struggle. */
-	@media (pointer: coarse) {
-		footer {
-			margin-bottom: max(25dvh, env(safe-area-inset-bottom));
-		}
-	}
-
-	@media (pointer: fine) {
-		footer {
-			padding-bottom: env(safe-area-inset-bottom);
-		}
-	}
-
-	.controls {
-		display: flex;
-		align-items: flex-end;
-		max-width: 800px;
-		margin: 0 auto;
-		padding-left: 12px;
-	}
-
-	.speed {
-		flex: 1;
-		min-width: 0;
-	}
-
+	/* A big, easy-to-hit play/pause button. On phones it fills the bottom quarter of the screen. */
 	.play {
 		display: grid;
 		flex: none;
 		place-items: center;
-		width: 56px;
-		height: 56px;
-		margin-bottom: 26px;
+		width: calc(100% - 24px);
+		max-width: 800px;
+		height: 64px;
+		margin: 4px auto calc(12px + env(safe-area-inset-bottom));
 		padding: 0;
 		border: 0;
-		border-radius: 50%;
-		background: var(--accent);
-		color: #fff;
+		border-radius: 18px;
+		background: var(--track);
+		color: var(--muted);
+		touch-action: manipulation;
+		user-select: none;
+		-webkit-user-select: none;
+	}
+
+	.play:active {
+		background: var(--track-fill);
+	}
+
+	@media (pointer: coarse) {
+		.play {
+			height: calc(25dvh - 16px - env(safe-area-inset-bottom));
+			min-height: 88px;
+		}
 	}
 
 	.play svg {
-		width: 26px;
-		height: 26px;
+		width: 40px;
+		height: 40px;
 		fill: currentColor;
 	}
 

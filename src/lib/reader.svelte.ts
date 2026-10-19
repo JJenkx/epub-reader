@@ -2,22 +2,26 @@ import type { Book, Token } from './epub';
 import { settings } from './settings.svelte';
 import { getJSON, setJSON } from './storage';
 
-const IMAGE_MS = 1000;
 const SENTENCE_END = /[.!?…]["'”’)\]]*$/;
 
 function endsSentence(token: Token) {
 	return 'img' in token || !!token.p || SENTENCE_END.test(token.w);
 }
 
-/** How long to show a token, relative to one word at the current speed. */
-function pause(token: Token) {
-	if ('img' in token) return 1;
+/** How long to show a word, relative to one word at the current speed. */
+function pause(w: string, paragraphEnd: boolean) {
+	const v = settings.values;
 	let m = 1;
-	if (SENTENCE_END.test(token.w)) m = 1.8;
-	else if (/[,;:—–]["'”’)\]]*$/.test(token.w)) m = 1.3;
-	if (token.p) m = Math.max(m, 2);
-	const { longWordChars, longWordFactor } = settings.values;
-	if (token.w.replace(/[^\p{L}\p{N}]/gu, '').length >= longWordChars) m *= longWordFactor;
+	if (SENTENCE_END.test(w)) m = v.sentenceFactor;
+	else if (/[,;:—–]["'”’)\]]*$/.test(w)) m = v.clauseFactor;
+	if (paragraphEnd) m = Math.max(m, v.paragraphFactor);
+	const letters = w.replace(/[^\p{L}\p{N}]/gu, '').length;
+	if (v.lengthCurve) {
+		const table = settings.lengthTable;
+		m *= table[Math.min(Math.max(letters, 1), table.length) - 1][1];
+	} else if (letters >= v.longWordChars) {
+		m *= v.longWordFactor;
+	}
 	return m;
 }
 
@@ -154,7 +158,10 @@ export class Reader {
 	#schedule() {
 		clearTimeout(this.#timer);
 		const token = this.book!.tokens[this.index];
-		const ms = 'img' in token ? IMAGE_MS : (60000 / this.rate) * pause(token);
+		const ms =
+			'img' in token
+				? settings.values.imageSeconds * 1000
+				: (60000 / this.rate) * pause(token.w, !!token.p);
 		this.#timer = setTimeout(() => this.#step(), ms);
 	}
 

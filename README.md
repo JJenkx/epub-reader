@@ -11,22 +11,30 @@ Live at **https://epub.jenkx.com**
   speed (200–800 wpm by default); slide to change it, lift to stop.
 - **Quick re-press to rewind.** Lift and press again within 0.5 s to back up 15 words and replay
   at half speed until you're back where you lifted.
-- **Continuous mode.** The play button reads without holding. While playing, the bar only changes
-  speed, and a tap on the left side of the screen backs up 15 words.
+- **Continuous mode.** The big play/pause button (it fills the bottom quarter of a phone screen)
+  reads without holding. While playing, the bar only changes speed, and a tap on the left side of
+  the screen backs up 15 words.
 - **Pausing** switches to a traditional page view with the current word highlighted. Tap a word to
   start from it; otherwise reading resumes at the beginning of the sentence.
 - **Pictures** stay on screen for 1 second, so you can stop on one if you want.
 - On desktop, holding **Space** works like holding the bar.
 
-Timing adds short pauses at commas, sentence ends and paragraph breaks, and shows long words
-(11+ letters by default) 1.5× as long. Hyphenated and dash-joined words are flashed one part at a
-time.
+Timing adds pauses at commas, sentence ends and paragraph breaks, and shows long words (11+ letters
+by default) 1.5× as long. Hyphenated and dash-joined words are flashed one part at a time.
 
 ## Settings
 
-Speed range, rewind window, rewind distance, replay speed, long-word threshold and multiplier,
-font size, focus-letter highlighting (or plain centered words), and whether to show the rest of a
-hyphenated word dimmed beside each part. Light and dark mode follow the system until you toggle them.
+- **Speed range** for the bar.
+- **Display:** font size, focus-letter highlighting (or plain centered words), and whether to show
+  the rest of a hyphenated word dimmed beside each part.
+- **Timing:** every timing rule is adjustable: the multipliers for sentence ends, commas/colons/dashes
+  and paragraph ends, the long-word threshold and multiplier, and how long pictures stay up.
+- **Experimental: time by word length.** Replaces the long-word rule with a curve you shape by
+  dragging three points of a quadratic Bézier (multiplier 1–3× over 1–20 letters). The curve is
+  sampled into a `[length, multiplier]` table whenever it changes, so reading only does a lookup.
+- **Rewind:** re-press window, how far to back up, and the replay speed.
+
+Light and dark mode follow the system until you toggle them.
 
 ## Storage
 

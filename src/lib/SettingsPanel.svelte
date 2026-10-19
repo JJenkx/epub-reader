@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CurveEditor from './CurveEditor.svelte';
 	import { settings } from './settings.svelte';
 
 	let { onopen, onremove }: { onopen: () => void; onremove: () => void } = $props();
@@ -15,36 +16,79 @@
 		</div>
 	</fieldset>
 
-	<label>
-		<span>Font size</span>
-		<span class="range">
-			<input type="range" min="0.5" max="2.5" step="0.05" bind:value={settings.values.fontScale} />
-			<output>{Math.round(settings.values.fontScale * 100)}%</output>
-		</span>
-	</label>
-
-	<label>
-		<span>Highlight focus letter</span>
-		<input type="checkbox" bind:checked={settings.values.focusLetter} />
-	</label>
-	<p class="hint">Off: no colored letter, and each word is centered as a whole.</p>
-
-	<label>
-		<span>Show whole hyphenated word</span>
-		<input type="checkbox" bind:checked={settings.values.hyphenContext} />
-	</label>
-	<p class="hint">On: the rest of the word is shown dimmed beside each part as it flashes.</p>
+	<fieldset>
+		<legend>Display</legend>
+		<label>
+			<span>Font size</span>
+			<span class="range">
+				<input type="range" min="0.5" max="2.5" step="0.05" bind:value={settings.values.fontScale} />
+				<output>{Math.round(settings.values.fontScale * 100)}%</output>
+			</span>
+		</label>
+		<label>
+			<span>Highlight focus letter</span>
+			<input type="checkbox" bind:checked={settings.values.focusLetter} />
+		</label>
+		<p class="hint">Off: no colored letter, and each word is centered as a whole.</p>
+		<label>
+			<span>Show whole hyphenated word</span>
+			<input type="checkbox" bind:checked={settings.values.hyphenContext} />
+		</label>
+		<p class="hint">On: the rest of the word is shown dimmed beside each part as it flashes.</p>
+	</fieldset>
 
 	<fieldset>
-		<legend>Long words</legend>
+		<legend>Timing</legend>
+		<p class="hint top">How long a word stays up, as a multiple of one word at the current speed.</p>
 		<label>
-			<span>At least (letters)</span>
-			<input type="number" inputmode="numeric" step="1" min="1" bind:value={settings.values.longWordChars} />
+			<span>Sentence end (. ! ? …)</span>
+			<input type="number" inputmode="decimal" step="0.1" min="1" bind:value={settings.values.sentenceFactor} />
 		</label>
 		<label>
-			<span>Show for (× time)</span>
-			<input type="number" inputmode="decimal" step="0.1" min="1" bind:value={settings.values.longWordFactor} />
+			<span>Comma, colon, dash (, ; : —)</span>
+			<input type="number" inputmode="decimal" step="0.1" min="1" bind:value={settings.values.clauseFactor} />
 		</label>
+		<label>
+			<span>Paragraph end</span>
+			<input type="number" inputmode="decimal" step="0.1" min="1" bind:value={settings.values.paragraphFactor} />
+		</label>
+		<label class={{ off: settings.values.lengthCurve }}>
+			<span>Long word, at least (letters)</span>
+			<input
+				type="number"
+				inputmode="numeric"
+				step="1"
+				min="1"
+				disabled={settings.values.lengthCurve}
+				bind:value={settings.values.longWordChars}
+			/>
+		</label>
+		<label class={{ off: settings.values.lengthCurve }}>
+			<span>Long word (× time)</span>
+			<input
+				type="number"
+				inputmode="decimal"
+				step="0.1"
+				min="1"
+				disabled={settings.values.lengthCurve}
+				bind:value={settings.values.longWordFactor}
+			/>
+		</label>
+		<label>
+			<span>Picture (seconds)</span>
+			<input type="number" inputmode="decimal" step="0.25" min="0" bind:value={settings.values.imageSeconds} />
+		</label>
+		<p class="hint">Punctuation uses the larger of its multipliers; word length multiplies on top.</p>
+
+		<label>
+			<span>Experimental: time by word length</span>
+			<input type="checkbox" bind:checked={settings.values.lengthCurve} />
+		</label>
+		{#if settings.values.lengthCurve}
+			<p class="hint">Replaces the long-word rule. Words over 20 letters use the 20-letter value.</p>
+			<CurveEditor />
+			<button type="button" class="link" onclick={() => settings.resetCurve()}>Reset curve</button>
+		{/if}
 	</fieldset>
 
 	<fieldset>
@@ -61,13 +105,13 @@
 			<span>Replay at (× speed)</span>
 			<input type="number" inputmode="decimal" step="0.05" min="0.1" max="1" bind:value={settings.values.catchUpFactor} />
 		</label>
+		<p class="hint">
+			A quick re-press of the bar backs up and replays slowly. While playing, a tap on the left
+			side of the screen backs up too.
+		</p>
 	</fieldset>
-	<p class="hint">
-		A quick re-press of the bar backs up and replays slowly. While playing, a tap on the left side
-		of the screen backs up too.
-	</p>
 
-	<button type="button" class="link" onclick={() => settings.reset()}>Reset to defaults</button>
+	<button type="button" class="link" onclick={() => settings.reset()}>Reset all to defaults</button>
 </form>
 
 <div class="book">
@@ -83,7 +127,7 @@
 
 	form {
 		display: grid;
-		gap: 14px;
+		gap: 22px;
 	}
 
 	fieldset {
@@ -138,8 +182,16 @@
 		font-size: 16px;
 	}
 
+	.off {
+		opacity: 0.45;
+	}
+
+	.hint.top {
+		margin: -4px 0 0;
+	}
+
 	.hint {
-		margin: -8px 0 0;
+		margin: -4px 0 0;
 		font-size: 0.8rem;
 		color: var(--muted);
 	}
