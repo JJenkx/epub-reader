@@ -116,10 +116,11 @@
 		overflow: visible;
 	}
 
+	/* Square on the right so the fill meets the marker instead of rounding off beside it. */
 	.fill {
 		position: absolute;
 		inset: 0 auto 0 0;
-		border-radius: 22px;
+		border-radius: 22px 0 0 22px;
 		background: var(--track-fill);
 		transition: width 60ms linear;
 	}

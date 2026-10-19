@@ -17,29 +17,50 @@
 	const xLines = Array.from({ length: CURVE_MAX_LETTERS }, (_, i) => i + 1);
 	const xLabels = [1, 5, 10, 15, 20];
 
-	type Handle = 0 | 1 | 2;
+	/** Draggable points: the two free control points and the end. The origin is fixed. */
+	type Handle = 1 | 2 | 3;
+	const handles: Handle[] = [1, 2, 3];
 	let dragging = $state<Handle | null>(null);
 
 	const v = $derived(settings.values);
 	const points = $derived([
-		{ x: 1, y: v.curveY0 },
+		{ x: 1, y: 1 },
 		{ x: v.curveX1, y: v.curveY1 },
-		{ x: CURVE_MAX_LETTERS, y: v.curveY2 }
+		{ x: v.curveX2, y: v.curveY2 },
+		{ x: CURVE_MAX_LETTERS, y: v.curveY3 }
 	]);
-	// Mapping to screen space is affine, so the SVG quadratic draws exactly the same curve.
+	// Mapping to screen space is affine, so the SVG cubic draws exactly the same curve.
 	const path = $derived(
-		`M ${px(points[0].x)} ${py(points[0].y)} Q ${px(points[1].x)} ${py(points[1].y)} ${px(points[2].x)} ${py(points[2].y)}`
+		`M ${px(1)} ${py(1)} C ${points
+			.slice(1)
+			.map((p) => `${px(p.x)} ${py(p.y)}`)
+			.join(' ')}`
 	);
+
+	const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 
 	function toData(svg: SVGSVGElement, e: PointerEvent) {
 		const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(svg.getScreenCTM()!.inverse());
 		const x = 1 + ((p.x - L) / (R - L)) * (CURVE_MAX_LETTERS - 1);
 		const y = 1 + ((B - p.y) / (B - T)) * (CURVE_MAX_MULTIPLIER - 1);
-		const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 		return {
 			x: Math.round(clamp(x, 1, CURVE_MAX_LETTERS) * 10) / 10,
 			y: Math.round(clamp(y, 1, CURVE_MAX_MULTIPLIER) * 100) / 100
 		};
+	}
+
+	/** Move a point, keeping the control points in left-to-right order so the curve stays a function. */
+	function place(handle: Handle, x: number, y: number) {
+		const s = settings.values;
+		if (handle === 1) {
+			s.curveX1 = clamp(x, 1, s.curveX2);
+			s.curveY1 = y;
+		} else if (handle === 2) {
+			s.curveX2 = clamp(x, s.curveX1, CURVE_MAX_LETTERS);
+			s.curveY2 = y;
+		} else {
+			s.curveY3 = y;
+		}
 	}
 
 	function down(e: PointerEvent & { currentTarget: SVGGElement }, handle: Handle) {
@@ -52,30 +73,23 @@
 	function move(e: PointerEvent & { currentTarget: SVGSVGElement }) {
 		if (dragging === null) return;
 		const { x, y } = toData(e.currentTarget, e);
-		if (dragging === 0) settings.values.curveY0 = y;
-		else if (dragging === 2) settings.values.curveY2 = y;
-		else {
-			settings.values.curveX1 = x;
-			settings.values.curveY1 = y;
-		}
+		place(dragging, x, y);
 	}
 
-	const names = ['Start (1 letter)', 'Middle control point', 'End (20 letters)'];
+	const names: Record<Handle, string> = {
+		1: 'First control point',
+		2: 'Second control point',
+		3: 'End (20 letters)'
+	};
 
-	/** Arrow keys nudge a point: up/down for the multiplier, left/right for the middle point's length. */
+	/** Arrow keys nudge a point: up/down for the multiplier, left/right for a control point's length. */
 	function keydown(e: KeyboardEvent, handle: Handle) {
-		const v = settings.values;
 		const dy = e.key === 'ArrowUp' ? 0.05 : e.key === 'ArrowDown' ? -0.05 : 0;
-		const dx = handle === 1 ? (e.key === 'ArrowRight' ? 0.5 : e.key === 'ArrowLeft' ? -0.5 : 0) : 0;
+		const dx = handle !== 3 ? (e.key === 'ArrowRight' ? 0.5 : e.key === 'ArrowLeft' ? -0.5 : 0) : 0;
 		if (!dx && !dy) return;
 		e.preventDefault();
-		const y = (n: number) => Math.round(Math.min(CURVE_MAX_MULTIPLIER, Math.max(1, n + dy)) * 100) / 100;
-		if (handle === 0) v.curveY0 = y(v.curveY0);
-		else if (handle === 2) v.curveY2 = y(v.curveY2);
-		else {
-			v.curveY1 = y(v.curveY1);
-			v.curveX1 = Math.min(CURVE_MAX_LETTERS, Math.max(1, v.curveX1 + dx));
-		}
+		const p = points[handle];
+		place(handle, p.x + dx, Math.round(clamp(p.y + dy, 1, CURVE_MAX_MULTIPLIER) * 100) / 100);
 		settings.save();
 	}
 
@@ -115,18 +129,20 @@
 		<circle class="sample" cx={px(length)} cy={py(m)} r="2.2" />
 	{/each}
 
-	{#each points as p, i (i)}
+	<circle class="origin" cx={px(1)} cy={py(1)} r="5" />
+	{#each handles as i (i)}
+		{@const p = points[i]}
 		<g
-			class={['handle', { active: dragging === i, free: i === 1 }]}
+			class={['handle', { active: dragging === i, free: i !== 3 }]}
 			role="slider"
 			tabindex="0"
 			aria-label={names[i]}
 			aria-valuemin={1}
 			aria-valuemax={CURVE_MAX_MULTIPLIER}
 			aria-valuenow={p.y}
-			aria-valuetext={i === 1 ? `${p.x} letters, ${p.y}×` : `${p.y}×`}
-			onpointerdown={(e) => down(e, i as Handle)}
-			onkeydown={(e) => keydown(e, i as Handle)}
+			aria-valuetext={i !== 3 ? `${p.x} letters, ${p.y}×` : `${p.y}×`}
+			onpointerdown={(e) => down(e, i)}
+			onkeydown={(e) => keydown(e, i)}
 		>
 			<circle class="hit" cx={px(p.x)} cy={py(p.y)} r="20" />
 			<circle class="dot" cx={px(p.x)} cy={py(p.y)} r="7" />
@@ -135,9 +151,9 @@
 </svg>
 <p class="readout">
 	{#if dragging === null}
-		Drag the points. The ends move up and down; the middle one moves freely.
+		Drag the points. The curve starts at 1× for 1 letter; the end moves up and down.
 	{:else}
-		{#if dragging === 1}{points[1].x.toFixed(1)} letters, {/if}{points[dragging].y.toFixed(2)}×
+		{#if dragging !== 3}{points[dragging].x.toFixed(1)} letters, {/if}{points[dragging].y.toFixed(2)}×
 	{/if}
 </p>
 
@@ -181,6 +197,10 @@
 		fill: none;
 		stroke: var(--accent);
 		stroke-width: 2.5;
+	}
+
+	.origin {
+		fill: var(--muted);
 	}
 
 	.sample {

@@ -1,38 +1,37 @@
 <script lang="ts">
-	import { parseEpub } from '#lib/epub.ts';
+	import Books from '#lib/Books.svelte';
+	import Dictionary from '#lib/Dictionary.svelte';
+	import { library } from '#lib/library.svelte.ts';
 	import PageView from '#lib/PageView.svelte';
+	import { pwa } from '#lib/pwa.svelte.ts';
 	import { reader } from '#lib/reader.svelte.ts';
 	import SettingsPanel from '#lib/SettingsPanel.svelte';
 	import { settings } from '#lib/settings.svelte.ts';
 	import SpeedBar from '#lib/SpeedBar.svelte';
-	import { clearBook, loadBook, saveBook } from '#lib/storage.ts';
 	import Toc from '#lib/Toc.svelte';
 	import WordDisplay from '#lib/WordDisplay.svelte';
 
+	type Panel = 'books' | 'toc' | 'settings' | 'dictionary';
+
 	let status = $state<'loading' | 'empty' | 'ready'>('loading');
 	let error = $state('');
-	let panel = $state<'toc' | 'settings' | null>(null);
+	let panel = $state<Panel | null>(null);
 	let pageView = $state(false);
 	let fileInput: HTMLInputElement | undefined = $state();
+	/** The word and sentence the dictionary was opened on. */
+	let lookup = $state({ word: '', sentence: '' });
 
-	async function open(name: string, data: Blob) {
-		const book = await parseEpub(data);
-		reader.open(book, `${name}:${data.size}`);
-		document.title = book.title;
-		status = 'ready';
-	}
-
-	async function restore() {
+	async function init() {
 		try {
-			const stored = await loadBook();
-			if (stored) return await open(stored.name, stored.data);
+			await library.init();
 		} catch (e) {
-			error = `Couldn't reopen the saved book: ${(e as Error).message}`;
+			error = `Couldn't reopen your books: ${(e as Error).message}`;
 		}
-		status = 'empty';
+		status = reader.book ? 'ready' : 'empty';
 	}
 
-	restore();
+	init();
+	pwa.init(() => reader.playing);
 
 	async function onfile(e: Event & { currentTarget: HTMLInputElement }) {
 		const file = e.currentTarget.files?.[0];
@@ -42,32 +41,32 @@
 		error = '';
 		status = 'loading';
 		try {
-			await open(file.name, file);
-			await saveBook({ name: file.name, data: file });
+			await library.add(file);
+			pageView = false;
 		} catch (err) {
 			error = `Couldn't open ${file.name}: ${(err as Error).message}`;
-			status = reader.book ? 'ready' : 'empty';
 		}
-	}
-
-	async function remove() {
-		panel = null;
-		reader.close();
-		await clearBook();
-		document.title = 'EPUB Reader';
-		status = 'empty';
+		status = reader.book ? 'ready' : 'empty';
 	}
 
 	let pageTimer: ReturnType<typeof setTimeout> | undefined;
 
-	function togglePage() {
-		reader.stop();
-		pageView = !pageView;
+	function openPanel(which: Panel) {
+		if (reader.playing) {
+			reader.stop();
+			paused(0);
+		}
+		if (which === 'dictionary') {
+			const token = reader.token;
+			const word = token && 'w' in token ? (token.h ? token.h.parts.join('') : token.w) : '';
+			lookup = { word, sentence: reader.sentenceAt(reader.index) };
+		}
+		panel = which;
 	}
 
-	function openPanel(which: 'toc' | 'settings') {
-		reader.stop();
-		panel = which;
+	function closePanel() {
+		panel = null;
+		status = reader.book ? 'ready' : 'empty';
 	}
 
 	function showRsvp() {
@@ -92,18 +91,10 @@
 			reader.play();
 		}
 	}
-
-	/** While reading continuously, a tap on the left half of the screen backs up. */
-	function tapBack(e: PointerEvent) {
-		if (!reader.continuous || e.clientX >= innerWidth / 2) return;
-		if ((e.target as Element).closest('header, footer, aside, button')) return;
-		reader.back();
-	}
 </script>
 
 <svelte:window onpagehide={() => reader.save()} />
 <svelte:document
-	onpointerdown={tapBack}
 	onvisibilitychange={() => {
 		if (document.hidden && reader.playing) {
 			reader.stop();
@@ -117,6 +108,9 @@
 <div class="app">
 	<header>
 		<div class="left">
+			<button class="icon" aria-label="Books" onclick={() => openPanel('books')}>
+				<svg viewBox="0 0 24 24"><path d="M5 4h4v16H5zM10 4h4v16h-4zM15.5 4.6l3.8-1 3.7 15.5-3.9.9z" /></svg>
+			</button>
 			{#if status === 'ready'}
 				<button class="icon" aria-label="Table of contents" onclick={() => openPanel('toc')}>
 					<svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10" /></svg>
@@ -126,13 +120,8 @@
 		</div>
 		<div class="right">
 			{#if status === 'ready'}
-				<button
-					class={['icon', { on: pageView }]}
-					aria-label="Page view"
-					aria-pressed={pageView}
-					onclick={togglePage}
-				>
-					<svg viewBox="0 0 24 24"><path d="M12 6c-2-1.5-5-2-8-2v14c3 0 6 .5 8 2 2-1.5 5-2 8-2V4c-3 0-6 .5-8 2zm0 0v14" /></svg>
+				<button class="icon" aria-label="Dictionary" onclick={() => openPanel('dictionary')}>
+					<svg viewBox="0 0 24 24"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5zM5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3M9 7.5h6M9 10.5h4" /></svg>
 				</button>
 			{/if}
 			<button
@@ -152,13 +141,25 @@
 		</div>
 	</header>
 
+	{#if !pwa.dismissed && (pwa.canInstall || pwa.iosHint)}
+		<div class="install" role="status">
+			{#if pwa.canInstall}
+				<span>Install Read as an app: it opens full screen and works offline.</span>
+				<button class="primary" onclick={() => pwa.install()}>Install</button>
+			{:else}
+				<span>To install, tap Share, then “Add to Home Screen”.</span>
+			{/if}
+			<button aria-label="Dismiss" onclick={() => pwa.dismiss()}>Not now</button>
+		</div>
+	{/if}
+
 	<main>
 		{#if status === 'loading'}
 			<p class="center muted">Loading…</p>
 		{:else if status === 'empty'}
 			<div class="center">
 				<button class="open" onclick={() => fileInput?.click()}>Open an EPUB</button>
-				<p class="muted">Your book stays on this device.</p>
+				<p class="muted">Your books stay on this device.</p>
 			</div>
 		{:else if pageView}
 			<PageView />
@@ -179,26 +180,38 @@
 			<div class="progress"><div style:width="{reader.progress * 100}%"></div></div>
 			<SpeedBar onpress={showRsvp} onpause={() => paused()} />
 		</footer>
-		<button class="play" aria-label={reader.continuous ? 'Pause' : 'Play'} onclick={togglePlay}>
-			{#if reader.continuous}
-				<svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
-			{:else}
-				<svg viewBox="0 0 24 24"><path d="M8 5.5v13a1 1 0 0 0 1.5.9l10.4-6.5a1 1 0 0 0 0-1.8L9.5 4.6A1 1 0 0 0 8 5.5z" /></svg>
-			{/if}
-		</button>
+		<div class="dock">
+			<button class="rewind" aria-label="Rewind" onclick={() => reader.back()}>
+				<svg viewBox="0 0 24 24"><path d="M11 7.5v9a.8.8 0 0 1-1.3.6L4 12.6a.8.8 0 0 1 0-1.2l5.7-4.5a.8.8 0 0 1 1.3.6zM20 7.5v9a.8.8 0 0 1-1.3.6L13 12.6a.8.8 0 0 1 0-1.2l5.7-4.5a.8.8 0 0 1 1.3.6z" /></svg>
+			</button>
+			<button class="play" aria-label={reader.continuous ? 'Pause' : 'Play'} onclick={togglePlay}>
+				{#if reader.continuous}
+					<svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
+				{:else}
+					<svg viewBox="0 0 24 24"><path d="M8 5.5v13a1 1 0 0 0 1.5.9l10.4-6.5a1 1 0 0 0 0-1.8L9.5 4.6A1 1 0 0 0 8 5.5z" /></svg>
+				{/if}
+			</button>
+		</div>
 	{/if}
 </div>
 
 {#if panel}
-	<div class="scrim" role="presentation" onclick={() => (panel = null)}></div>
-	<aside class={['sheet', panel]}>
-		<button class="icon close" aria-label="Close" onclick={() => (panel = null)}>
+	<div class="scrim" role="presentation" onclick={closePanel}></div>
+	<aside class={['sheet', panel === 'books' || panel === 'toc' ? 'from-left' : 'from-right']}>
+		<button class="icon close" aria-label="Close" onclick={closePanel}>
 			<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
 		</button>
-		{#if panel === 'toc'}
-			<Toc onclose={() => (panel = null)} />
+		{#if panel === 'books'}
+			<Books onadd={() => fileInput?.click()} onclose={closePanel} />
+		{:else if panel === 'toc'}
+			<Toc onclose={closePanel} />
+		{:else if panel === 'dictionary'}
+			<Dictionary
+				word={lookup.word}
+				context={{ sentence: lookup.sentence, book: reader.book?.title ?? '' }}
+			/>
 		{:else}
-			<SettingsPanel onopen={() => fileInput?.click()} onremove={remove} />
+			<SettingsPanel />
 		{/if}
 	</aside>
 {/if}
@@ -226,7 +239,14 @@
 		min-width: 0;
 	}
 
+	/* The title gives way to the buttons, never the other way round. */
+	.left {
+		flex: 1;
+		gap: 2px;
+	}
+
 	.right {
+		flex: none;
 		gap: 14px;
 	}
 
@@ -249,10 +269,6 @@
 		border-radius: 10px;
 		background: none;
 		color: var(--text);
-	}
-
-	.icon.on {
-		color: var(--accent);
 	}
 
 	.icon svg {
@@ -310,15 +326,27 @@
 		border-top: 1px solid var(--border);
 	}
 
-	/* A big, easy-to-hit play/pause button. On phones it fills the bottom quarter of the screen. */
-	.play {
-		display: grid;
-		flex: none;
-		place-items: center;
+	/* Big, easy-to-hit controls. On phones they fill the bottom quarter of the screen:
+	   rewind on the left quarter, play/pause on the rest. */
+	.dock {
+		display: flex;
+		gap: 8px;
 		width: calc(100% - 24px);
 		max-width: 800px;
 		height: 64px;
 		margin: 4px auto calc(12px + env(safe-area-inset-bottom));
+	}
+
+	@media (pointer: coarse) {
+		.dock {
+			height: calc(25dvh - 16px - env(safe-area-inset-bottom));
+			min-height: 88px;
+		}
+	}
+
+	.dock button {
+		display: grid;
+		place-items: center;
 		padding: 0;
 		border: 0;
 		border-radius: 18px;
@@ -329,21 +357,58 @@
 		-webkit-user-select: none;
 	}
 
-	.play:active {
+	.dock button:active {
 		background: var(--track-fill);
 	}
 
-	@media (pointer: coarse) {
-		.play {
-			height: calc(25dvh - 16px - env(safe-area-inset-bottom));
-			min-height: 88px;
-		}
+	.rewind {
+		flex: 1;
 	}
 
-	.play svg {
+	.play {
+		flex: 3;
+	}
+
+	.dock svg {
 		width: 40px;
 		height: 40px;
 		fill: currentColor;
+	}
+
+	.rewind svg {
+		width: 32px;
+		height: 32px;
+	}
+
+	.install {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 8px;
+		margin: 0 12px 4px;
+		padding: 10px 12px;
+		border-radius: 12px;
+		background: var(--track);
+		font-size: 0.85rem;
+	}
+
+	.install span {
+		flex: 1 1 180px;
+	}
+
+	.install button {
+		padding: 7px 12px;
+		border: 1px solid var(--border);
+		border-radius: 8px;
+		background: none;
+		color: var(--text);
+		font: inherit;
+	}
+
+	.install .primary {
+		border-color: var(--accent);
+		background: var(--accent);
+		color: #fff;
 	}
 
 	.meta {
@@ -394,13 +459,13 @@
 		box-shadow: 0 0 24px rgb(0 0 0 / 0.15);
 	}
 
-	.sheet.toc {
+	.sheet.from-left {
 		left: 0;
 		padding-left: 4px;
 		padding-right: 4px;
 	}
 
-	.sheet.settings {
+	.sheet.from-right {
 		right: 0;
 	}
 

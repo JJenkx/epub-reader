@@ -59,9 +59,10 @@ export class Reader {
 	/** The position was chosen exactly (a tapped word), so don't snap back to the sentence start. */
 	#exact = false;
 
+	/** Show a book. The library owns parsed books, so switching away doesn't dispose them. */
 	open(book: Book, key: string) {
 		this.stop();
-		this.book?.dispose();
+		this.save();
 		this.book = book;
 		this.#key = `rsvp-pos:${key}`;
 		this.catchUpUntil = null;
@@ -70,7 +71,6 @@ export class Reader {
 
 	close() {
 		this.stop();
-		this.book?.dispose();
 		this.book = null;
 	}
 
@@ -90,11 +90,11 @@ export class Reader {
 		if (!this.book) return;
 		this.wpm = wpm;
 		if (this.playing) return; // Continuous mode: the bar only adjusts speed.
-		const { retapWindow, rewindWords } = settings.values;
+		const { retapWindow } = settings.values;
 		if (performance.now() - this.#liftedAt <= retapWindow * 1000) {
 			// Quick re-press: back up and replay slowly until we're back where we lifted.
 			const target = Math.max(this.catchUpUntil ?? 0, this.#liftedIndex);
-			this.index = Math.max(0, this.#liftedIndex - rewindWords);
+			this.index = this.#rewindTarget(this.#liftedIndex);
 			this.catchUpUntil = target > this.index ? target : null;
 		} else {
 			this.#resumePosition();
@@ -120,12 +120,29 @@ export class Reader {
 		this.#schedule();
 	}
 
-	/** Back up by the rewind setting without stopping. */
+	/** The rewind button: back up per the rewind settings, without stopping. */
 	back() {
 		if (!this.book) return;
-		this.index = Math.max(0, this.index - settings.values.rewindWords);
+		this.index = this.#rewindTarget(this.index);
 		this.catchUpUntil = null;
+		this.#exact = true;
+		this.save();
 		if (this.playing) this.#schedule();
+	}
+
+	/** The sentence around a word, for dictionary context. */
+	sentenceAt(index: number) {
+		const tokens = this.book?.tokens;
+		if (!tokens) return '';
+		let end = index;
+		while (end < tokens.length - 1 && end - index < 60 && !endsSentence(tokens[end])) end++;
+		let text = '';
+		for (let i = this.#sentenceStart(index); i <= end; i++) {
+			const t = tokens[i];
+			if ('img' in t) continue;
+			text += (text && !(t.h && t.h.i > 0) ? ' ' : '') + t.w;
+		}
+		return text;
 	}
 
 	stop() {
@@ -148,11 +165,33 @@ export class Reader {
 			this.#exact = false;
 			return;
 		}
-		const tokens = this.book!.tokens;
-		let i = this.index;
 		// Back to the start of the sentence, but never further than a long sentence's worth.
-		while (i > 0 && this.index - i < 80 && !endsSentence(tokens[i - 1])) i--;
-		this.index = i;
+		this.index = Math.max(this.#sentenceStart(this.index), this.index - 80);
+	}
+
+	#sentenceStart(index: number) {
+		const tokens = this.book!.tokens;
+		let i = index;
+		while (i > 0 && !endsSentence(tokens[i - 1])) i--;
+		return i;
+	}
+
+	/**
+	 * Where a rewind from `from` lands. By words: a fixed distance back. By sentence: the start of
+	 * this sentence; then keep going back a sentence while the jump is under the minimum (you're
+	 * near the start) or the sentence landed on is shorter than the minimum. Capped at the maximum.
+	 */
+	#rewindTarget(from: number) {
+		const v = settings.values;
+		if (v.rewindMode === 'words') return Math.max(0, from - v.rewindWords);
+		const min = v.rewindMinWords;
+		let target = this.#sentenceStart(from);
+		let next = from + 1; // Where the landed-on sentence ends (exclusive), for its length.
+		while (target > 0 && (from - target < min || next - target < min)) {
+			next = target;
+			target = this.#sentenceStart(target - 1);
+		}
+		return Math.max(0, target, from - v.rewindMaxWords);
 	}
 
 	#schedule() {
