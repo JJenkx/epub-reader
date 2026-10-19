@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Books from '#lib/Books.svelte';
 	import Dictionary from '#lib/Dictionary.svelte';
+	import Dock from '#lib/Dock.svelte';
 	import { library } from '#lib/library.svelte.ts';
 	import PageView from '#lib/PageView.svelte';
 	import { pwa } from '#lib/pwa.svelte.ts';
@@ -82,6 +83,13 @@
 		}, delay);
 	}
 
+	/** Dragging on the dock: stop and show the page, where the highlight follows the drag. */
+	function scrubStart() {
+		reader.stop();
+		clearTimeout(pageTimer);
+		pageView = true;
+	}
+
 	function togglePlay() {
 		if (reader.continuous) {
 			reader.stop();
@@ -121,7 +129,7 @@
 		<div class="right">
 			{#if status === 'ready'}
 				<button class="icon" aria-label="Dictionary" onclick={() => openPanel('dictionary')}>
-					<svg viewBox="0 0 24 24"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5zM5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3M9 7.5h6M9 10.5h4" /></svg>
+					<svg viewBox="0 0 24 24"><path d="M6 3.5h12.5v17H6A1.5 1.5 0 0 1 4.5 19V5A1.5 1.5 0 0 1 6 3.5zM4.5 17.5A1.5 1.5 0 0 1 6 16h12.5" /><path class="thin" d="M7.6 12.2l1.7-5 1.7 5M8.15 10.6h2.3M12.6 7.2h3.2l-3.2 5h3.2" /></svg>
 				</button>
 			{/if}
 			<button
@@ -180,18 +188,7 @@
 			<div class="progress"><div style:width="{reader.progress * 100}%"></div></div>
 			<SpeedBar onpress={showRsvp} onpause={() => paused()} />
 		</footer>
-		<div class="dock">
-			<button class="rewind" aria-label="Rewind" onclick={() => reader.back()}>
-				<svg viewBox="0 0 24 24"><path d="M11 7.5v9a.8.8 0 0 1-1.3.6L4 12.6a.8.8 0 0 1 0-1.2l5.7-4.5a.8.8 0 0 1 1.3.6zM20 7.5v9a.8.8 0 0 1-1.3.6L13 12.6a.8.8 0 0 1 0-1.2l5.7-4.5a.8.8 0 0 1 1.3.6z" /></svg>
-			</button>
-			<button class="play" aria-label={reader.continuous ? 'Pause' : 'Play'} onclick={togglePlay}>
-				{#if reader.continuous}
-					<svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
-				{:else}
-					<svg viewBox="0 0 24 24"><path d="M8 5.5v13a1 1 0 0 0 1.5.9l10.4-6.5a1 1 0 0 0 0-1.8L9.5 4.6A1 1 0 0 0 8 5.5z" /></svg>
-				{/if}
-			</button>
-		</div>
+		<Dock ontoggle={togglePlay} onscrubstart={scrubStart} />
 	{/if}
 </div>
 
@@ -281,6 +278,10 @@
 		stroke-linejoin: round;
 	}
 
+	.icon svg .thin {
+		stroke-width: 1.4;
+	}
+
 	main {
 		position: relative;
 		flex: 1;
@@ -324,60 +325,6 @@
 
 	footer {
 		border-top: 1px solid var(--border);
-	}
-
-	/* Big, easy-to-hit controls. On phones they fill the bottom quarter of the screen:
-	   rewind on the left quarter, play/pause on the rest. */
-	.dock {
-		display: flex;
-		gap: 8px;
-		width: calc(100% - 24px);
-		max-width: 800px;
-		height: 64px;
-		margin: 4px auto calc(12px + env(safe-area-inset-bottom));
-	}
-
-	@media (pointer: coarse) {
-		.dock {
-			height: calc(25dvh - 16px - env(safe-area-inset-bottom));
-			min-height: 88px;
-		}
-	}
-
-	.dock button {
-		display: grid;
-		place-items: center;
-		padding: 0;
-		border: 0;
-		border-radius: 18px;
-		background: var(--track);
-		color: var(--muted);
-		touch-action: manipulation;
-		user-select: none;
-		-webkit-user-select: none;
-	}
-
-	.dock button:active {
-		background: var(--track-fill);
-	}
-
-	.rewind {
-		flex: 1;
-	}
-
-	.play {
-		flex: 3;
-	}
-
-	.dock svg {
-		width: 40px;
-		height: 40px;
-		fill: currentColor;
-	}
-
-	.rewind svg {
-		width: 32px;
-		height: 32px;
 	}
 
 	.install {

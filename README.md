@@ -8,11 +8,16 @@ Live at **https://epub.jenkx.com**
 ## Reading
 
 - **Hold to read.** Press and hold the speed bar at the bottom. Where your finger sits sets the
-  speed (200–800 wpm by default); slide to change it, lift to stop.
-- **Quick re-press to rewind.** Lift and press again within 0.5 s to back up 15 words and replay
-  at half speed until you're back where you lifted.
-- **Continuous mode.** The big play/pause button (it fills the bottom quarter of a phone screen)
-  reads without holding. While playing, the bar only changes speed.
+  base speed (200–800 wpm by default, turtle to rabbit); slide to change it, lift to stop. A
+  bubble shows "up to N wpm" while you hold, since pauses only ever slow a word down, and a faint
+  dashed mark in the bar shows the speed you actually read at over the last minute.
+- **Quick re-press to carry on.** Lift and press again within 0.5 s and reading continues from
+  the same word, without flipping to the page view.
+- **Continuous mode.** The big play/pause button (it fills the bottom of a phone screen) reads
+  without holding. While playing, the bar only changes speed.
+- **Trackpad.** Drag anywhere on the play and rewind buttons to move through the page view a word
+  at a time sideways, or a line at a time up and down, like the space-bar cursor on Android
+  keyboards. The highlight strains toward the next word as you drag, then snaps to it.
 - **Rewind.** The button left of play backs up 15 words, or optionally to the start of the
   sentence (or the one before, if you're near the start or the sentence is very short), with
   minimum and maximum jumps.
@@ -25,22 +30,22 @@ Live at **https://epub.jenkx.com**
 - **Dictionary.** Look up the current word (definitions from Wiktionary). Every lookup is saved
   for offline use, with the sentence it came from, and the list exports as an Anki deck.
 
-Timing adds pauses at commas, sentence ends and paragraph breaks, and shows long words (11+ letters
-by default) 1.5× as long. Hyphenated and dash-joined words are flashed one part at a time.
+Timing adds pauses at commas, sentence ends and paragraph breaks, and holds words longer the
+longer they are. Extra time from each rule adds up rather than multiplying: a 2× long word ending
+a 1.5× sentence shows for 2.5×. Hyphenated and dash-joined words are flashed one part at a time.
 
 ## Settings
 
-- **Speed range** for the bar.
+- **Base speed range** for the bar, and the quick re-press window.
 - **Display:** font size, focus-letter highlighting (or plain centered words), and whether to show
   the rest of a hyphenated word dimmed beside each part.
 - **Timing:** every timing rule is adjustable: the multipliers for sentence ends, commas/colons/dashes
-  and paragraph ends, the long-word threshold and multiplier, and how long pictures stay up.
-- **Experimental: time by word length.** Replaces the long-word rule with a curve you shape by
-  dragging the control points of a cubic Bézier that starts at (1 letter, 1×) (multiplier 1–3×
-  over 1–20 letters). The curve is sampled into a `[length, multiplier]` table whenever it
-  changes, so reading only does a lookup.
-- **Rewind:** by words or to the sentence start (with minimum and maximum jumps), the re-press
-  window, and the replay speed.
+  and paragraph ends, and how long pictures stay up.
+- **Word length:** a curve you shape by dragging the points of a cubic Bézier that starts at
+  (1 letter, 1×) (multiplier 1–3× over 1–20 letters). The curve is sampled into a
+  `[length, multiplier]` table whenever it changes, so reading only does a lookup.
+- **Trackpad:** drag distances per word and per line, and the strain and snap animation.
+- **Rewind:** by words or to the sentence start, with minimum and maximum jumps.
 
 Light and dark mode follow the system until you toggle them.
 
