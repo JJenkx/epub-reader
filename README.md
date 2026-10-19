@@ -59,3 +59,7 @@ walked into a flat list of words and images, which both the RSVP view and the pa
 
 The repo includes Svelte's official AI tooling (`.mcp.json`, `.claude/`, `AGENTS.md`) from
 `npx sv add ai-tools`, for working on it with coding agents.
+
+## License
+
+[GPL-3.0-or-later](LICENSE)
